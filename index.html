@@ -312,7 +312,9 @@ const cache={};
 async function fetchModel(file,onProgress){
   if(window.MODEL_RAW){// standalone hosting: plain .glb files
     const r=await fetch('models/'+file);if(!r.ok)throw new Error('HTTP '+r.status);const total=+r.headers.get('content-length')||0;
-    let buf;if(r.body&&r.body.getReader&&total){const rd=r.body.getReader();const out=new Uint8Array(total);let got=0;for(;;){const {done,value}=await rd.read();if(done)break;out.set(value,got);got+=value.length;if(onProgress)onProgress(got/total)}buf=out.buffer}else buf=await r.arrayBuffer();
+    // NB: hosts like GitHub Pages gzip .glb, so content-length may be the COMPRESSED size — never size the buffer from it
+    let buf;if(r.body&&r.body.getReader){const rd=r.body.getReader();const parts=[];let got=0;for(;;){const {done,value}=await rd.read();if(done)break;parts.push(value);got+=value.length;if(onProgress&&total)onProgress(Math.min(got/total,1))}
+      const out=new Uint8Array(got);let o=0;for(const p of parts){out.set(p,o);o+=p.length}buf=out.buffer}else buf=await r.arrayBuffer();
     return new Promise((ok,fail)=>new GLTFLoader().parse(buf,'',ok,fail))}
   const res=await fetch('models/'+file+'.b64.txt');if(!res.ok)throw new Error('HTTP '+res.status);
   const total=+res.headers.get('content-length')||0;let text='';
